@@ -1,0 +1,14 @@
+.git
+__pycache__/
+*.pyc
+work/
+generated/
+_inspect/
+.cache/
+.matplotlib/
+.modelscope/
+paddle_cache/
+AppData/
+cloudflared.exe
+.claude/
+app_old.py

@@ -2,3 +2,6 @@ Flask
 openpyxl
 Pillow
 pypdf
+pytesseract
+PyMuPDF
+gunicorn

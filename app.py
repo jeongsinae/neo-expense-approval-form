@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -26,8 +27,10 @@ from pypdf import PdfReader, PdfWriter
 
 
 BASE_DIR = Path(__file__).resolve().parent
-REFERENCE_DIR = Path(r"C:\Users\ddoch\Desktop\지출결의서")
-TEMPLATE_XLSX = REFERENCE_DIR / "4월" / "26년_04월_지출결의서_정시내.xlsx"
+# 템플릿은 레포에 포함된 파일을 우선 사용하고, 없으면 로컬 참조 경로로 폴백한다.
+_REPO_TEMPLATE = BASE_DIR / "template" / "template.xlsx"
+_LOCAL_TEMPLATE = Path(r"C:\Users\ddoch\Desktop\지출결의서\4월\26년_04월_지출결의서_정시내.xlsx")
+TEMPLATE_XLSX = _REPO_TEMPLATE if _REPO_TEMPLATE.exists() else _LOCAL_TEMPLATE
 WORK_DIR = BASE_DIR / "work"
 OUTPUT_DIR = BASE_DIR / "generated"
 OCR_SCRIPT = BASE_DIR / "ocr_windows.ps1"
@@ -254,8 +257,17 @@ def build_entry(filename: str, year: int, month: int, attendee: str = "정시내
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_ocr(path: Path) -> str:
-    if not OCR_SCRIPT.exists():
-        return ""
+    """OCR 텍스트 추출.
+
+    Windows에서 ocr_windows.ps1이 있으면 내장 OCR 엔진을 쓰고,
+    그 외 환경(Linux 배포 등)에서는 Tesseract로 대체한다.
+    """
+    if sys.platform.startswith("win") and OCR_SCRIPT.exists():
+        return _run_ocr_windows(path)
+    return _run_ocr_tesseract(path)
+
+
+def _run_ocr_windows(path: Path) -> str:
     try:
         completed = subprocess.run(
             ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
@@ -274,6 +286,37 @@ def run_ocr(path: Path) -> str:
         except UnicodeDecodeError:
             continue
     return raw.decode("utf-8", errors="ignore").strip()
+
+
+def _run_ocr_tesseract(path: Path) -> str:
+    """Tesseract 기반 OCR. PDF는 첫 페이지를 렌더링해 인식한다."""
+    try:
+        import pytesseract
+    except ImportError:
+        return ""
+
+    images: list[Image.Image] = []
+    try:
+        if path.suffix.lower() == ".pdf":
+            try:
+                import fitz  # PyMuPDF
+            except ImportError:
+                return ""
+            with fitz.open(str(path)) as doc:
+                if doc.page_count < 1:
+                    return ""
+                page = doc.load_page(0)
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                images.append(Image.open(io.BytesIO(pix.tobytes("png"))))
+        else:
+            images.append(Image.open(path))
+
+        texts = []
+        for img in images:
+            texts.append(pytesseract.image_to_string(img, lang="kor+eng"))
+        return "\n".join(texts).strip()
+    except Exception:
+        return ""
 
 
 def _normalize_amount(token: str) -> int | None:
