@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Runtime / user data (receipts, generated forms)
+work/
+generated/
+_inspect/
+
+# Caches / models
+.cache/
+.matplotlib/
+.modelscope/
+paddle_cache/
+AppData/
+
+# Local tooling
+.claude/settings.local.json
+cloudflared.exe
+
+# OS
+Thumbs.db
+.DS_Store
